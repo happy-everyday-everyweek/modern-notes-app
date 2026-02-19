@@ -40,17 +40,13 @@ fun MainScreen(
     onNavigateToSettings: () -> Unit
 ) {
     val viewModel: MainViewModel = viewModel()
-    val notes by viewModel.notes.collectAsState()
     val categories by viewModel.categories.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
-    val searchResults by viewModel.searchResults.collectAsState()
     val isSearching by viewModel.isSearching.collectAsState()
-    val selectedCategoryId by viewModel.selectedCategoryId.collectAsState()
+    val displayNoteGroups by viewModel.displayNoteGroups.collectAsState()
     
     var showSearchBar by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf<Note?>(null) }
-    
-    val displayNotes = if (isSearching) searchResults else notes
 
     Scaffold(
         topBar = {
@@ -103,7 +99,7 @@ fun MainScreen(
             }
         }
     ) { paddingValues ->
-        if (displayNotes.isEmpty()) {
+        if (displayNoteGroups.isEmpty()) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -121,12 +117,12 @@ fun MainScreen(
                         tint = MaterialTheme.colorScheme.outline
                     )
                     Text(
-                        "暂无笔记",
+                        if (isSearching && searchQuery.isNotEmpty()) "未找到相关笔记" else "暂无笔记",
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.outline
                     )
                     Text(
-                        "点击下方按钮添加新笔记",
+                        if (isSearching && searchQuery.isNotEmpty()) "尝试其他关键词" else "点击下方按钮添加新笔记",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.outline
                     )
@@ -137,16 +133,24 @@ fun MainScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(paddingValues),
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                items(displayNotes, key = { it.id }) { note ->
-                    NoteCard(
-                        note = note,
-                        categories = categories,
-                        onClick = { onNavigateToEdit(note.id) },
-                        onLongClick = { showDeleteDialog = note }
-                    )
+                displayNoteGroups.forEach { group ->
+                    // 粘性头部
+                    stickyHeader(key = group.title) {
+                        GroupHeader(title = group.title)
+                    }
+                    
+                    // 分组内的笔记卡片
+                    items(group.notes, key = { "note_${it.id}" }) { note ->
+                        NoteCard(
+                            note = note,
+                            categories = categories,
+                            onClick = { onNavigateToEdit(note.id) },
+                            onLongClick = { showDeleteDialog = note }
+                        )
+                    }
                 }
             }
         }
@@ -175,6 +179,28 @@ fun MainScreen(
                     Text("取消")
                 }
             }
+        )
+    }
+}
+
+/**
+ * 分组标题组件
+ * 使用粘性头部效果，滚动时固定在顶部
+ */
+@Composable
+fun GroupHeader(title: String) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
+        color = MaterialTheme.colorScheme.surface
+    ) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(vertical = 4.dp)
         )
     }
 }
