@@ -1,6 +1,7 @@
 package com.modernnotes.ui.screens
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -10,7 +11,11 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.modernnotes.NotesApp
 import com.modernnotes.data.model.Category
@@ -74,51 +79,116 @@ fun EditScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .padding(16.dp)
                 .verticalScroll(rememberScrollState())
         ) {
-            OutlinedTextField(
-                value = title,
-                onValueChange = { viewModel.setTitle(it) },
-                placeholder = { Text("标题") },
-                modifier = Modifier.fillMaxWidth(),
-                textStyle = MaterialTheme.typography.titleLarge,
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = MaterialTheme.colorScheme.primary,
-                    unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
-                ),
-                shape = RoundedCornerShape(12.dp)
-            )
+            // 标题输入区域 - 使用卡片包裹
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                shape = RoundedCornerShape(16.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerLow,
+                tonalElevation = 2.dp
+            ) {
+                OutlinedTextField(
+                    value = title,
+                    onValueChange = { viewModel.setTitle(it) },
+                    placeholder = { 
+                        Text(
+                            "输入标题...",
+                            style = MaterialTheme.typography.headlineSmall.copy(
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.6f)
+                            )
+                        ) 
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(4.dp),
+                    textStyle = MaterialTheme.typography.headlineSmall.copy(
+                        fontWeight = FontWeight.Bold,
+                        lineHeight = 32.sp
+                    ),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Color.Transparent,
+                        unfocusedBorderColor = Color.Transparent,
+                        focusedContainerColor = Color.Transparent,
+                        unfocusedContainerColor = Color.Transparent,
+                        cursorColor = MaterialTheme.colorScheme.primary
+                    ),
+                    singleLine = false,
+                    maxLines = 3
+                )
+            }
             
-            Spacer(modifier = Modifier.height(16.dp))
-            
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            // 分类选择区域
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 4.dp),
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.5f)
             ) {
                 ExposedDropdownMenuBox(
                     expanded = showCategoryMenu,
                     onExpandedChange = { showCategoryMenu = it },
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.fillMaxWidth()
                 ) {
                     OutlinedTextField(
                         value = categories.find { it.id == categoryId }?.name ?: "未分类",
                         onValueChange = {},
                         readOnly = true,
+                        leadingIcon = {
+                            Icon(
+                                Icons.Default.Folder,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        },
                         trailingIcon = {
                             ExposedDropdownMenuDefaults.TrailingIcon(expanded = showCategoryMenu)
                         },
-                        modifier = Modifier.menuAnchor(),
-                        label = { Text("分类") },
+                        modifier = Modifier
+                            .menuAnchor()
+                            .fillMaxWidth(),
+                        label = { 
+                            Text(
+                                "分类",
+                                style = MaterialTheme.typography.labelMedium
+                            ) 
+                        },
+                        textStyle = MaterialTheme.typography.bodyLarge,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Color.Transparent,
+                            unfocusedBorderColor = Color.Transparent,
+                            focusedContainerColor = Color.Transparent,
+                            unfocusedContainerColor = Color.Transparent
+                        ),
                         shape = RoundedCornerShape(12.dp)
                     )
                     
                     ExposedDropdownMenu(
                         expanded = showCategoryMenu,
-                        onDismissRequest = { showCategoryMenu = false }
+                        onDismissRequest = { showCategoryMenu = false },
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier
+                            .background(MaterialTheme.colorScheme.surface)
                     ) {
                         DropdownMenuItem(
-                            text = { Text("未分类") },
+                            text = { 
+                                Text(
+                                    "未分类",
+                                    style = MaterialTheme.typography.bodyLarge
+                                ) 
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    Icons.Default.FolderOpen,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            },
                             onClick = {
                                 viewModel.setCategory(null)
                                 showCategoryMenu = false
@@ -126,7 +196,20 @@ fun EditScreen(
                         )
                         categories.forEach { category ->
                             DropdownMenuItem(
-                                text = { Text(category.name) },
+                                text = { 
+                                    Text(
+                                        category.name,
+                                        style = MaterialTheme.typography.bodyLarge
+                                    ) 
+                                },
+                                leadingIcon = {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(16.dp)
+                                            .clip(RoundedCornerShape(4.dp))
+                                            .background(Color(category.color))
+                                    )
+                                },
                                 onClick = {
                                     viewModel.setCategory(category.id)
                                     showCategoryMenu = false
@@ -137,23 +220,47 @@ fun EditScreen(
                 }
             }
             
-            Spacer(modifier = Modifier.height(16.dp))
-            
-            OutlinedTextField(
-                value = content,
-                onValueChange = { viewModel.setContent(it) },
-                placeholder = { Text("开始输入内容...") },
+            // 内容输入区域
+            Surface(
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f, fill = false)
-                    .heightIn(min = 300.dp),
-                textStyle = MaterialTheme.typography.bodyLarge,
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = MaterialTheme.colorScheme.primary,
-                    unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
-                ),
-                shape = RoundedCornerShape(12.dp)
-            )
+                    .padding(horizontal = 16.dp, vertical = 12.dp)
+                    .heightIn(min = 350.dp),
+                shape = RoundedCornerShape(16.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerLow,
+                tonalElevation = 2.dp
+            ) {
+                OutlinedTextField(
+                    value = content,
+                    onValueChange = { viewModel.setContent(it) },
+                    placeholder = { 
+                        Text(
+                            "开始输入内容...",
+                            style = MaterialTheme.typography.bodyLarge.copy(
+                                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.6f)
+                            )
+                        ) 
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 350.dp)
+                        .padding(4.dp),
+                    textStyle = MaterialTheme.typography.bodyLarge.copy(
+                        lineHeight = 26.sp,
+                        letterSpacing = 0.3.sp
+                    ),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Color.Transparent,
+                        unfocusedBorderColor = Color.Transparent,
+                        focusedContainerColor = Color.Transparent,
+                        unfocusedContainerColor = Color.Transparent,
+                        cursorColor = MaterialTheme.colorScheme.primary
+                    )
+                )
+            }
+            
+            Spacer(modifier = Modifier.height(16.dp))
         }
     }
 }

@@ -40,6 +40,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Brush
@@ -48,7 +49,7 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.foundation.alpha
+import androidx.compose.foundation.layout.Arrangement
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.modernnotes.data.model.Category
 import com.modernnotes.data.model.Note
@@ -95,101 +96,36 @@ fun MainScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    AnimatedVisibility(
-                        visible = showSearchBar,
-                        enter = fadeIn(animationSpec = tween(300)) + 
-                                expandHorizontally(
-                                    animationSpec = tween(300),
-                                    expandFrom = Alignment.End
-                                ),
-                        exit = fadeOut(animationSpec = tween(250)) + 
-                               shrinkHorizontally(
-                                   animationSpec = tween(250),
-                                   shrinkTowards = Alignment.End
-                               )
-                    ) {
-                        SearchBar(
-                            query = searchQuery,
-                            onQueryChange = { viewModel.setSearchQuery(it) },
-                            onSearch = { /* 搜索操作 */ },
-                            active = false,
-                            onActiveChange = { },
+                    if (showSearchBar) {
+                        TextField(
+                            value = searchQuery,
+                            onValueChange = { viewModel.setSearchQuery(it) },
                             placeholder = { Text("搜索笔记") },
-                            leadingIcon = {
-                                Icon(
-                                    Icons.Default.Search,
-                                    contentDescription = "搜索",
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            },
-                            trailingIcon = {
-                                if (searchQuery.isNotEmpty()) {
-                                    IconButton(onClick = { viewModel.setSearchQuery("") }) {
-                                        Icon(
-                                            Icons.Default.Clear,
-                                            contentDescription = "清除",
-                                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-                                }
-                            },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(end = 8.dp),
-                            shape = RoundedCornerShape(28.dp),
-                            colors = SearchBarDefaults.colors(
-                                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                                inputFieldColors = TextFieldDefaults.colors(
-                                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
-                                    focusedContainerColor = Color.Transparent,
-                                    unfocusedContainerColor = Color.Transparent
-                                )
-                            )
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = TextFieldDefaults.colors(
+                                focusedContainerColor = MaterialTheme.colorScheme.surface,
+                                unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                                focusedIndicatorColor = Color.Transparent,
+                                unfocusedIndicatorColor = Color.Transparent
+                            ),
+                            singleLine = true
                         )
-                    }
-                    
-                    AnimatedVisibility(
-                        visible = !showSearchBar,
-                        enter = fadeIn(animationSpec = tween(300)) + 
-                                slideInHorizontally(
-                                    animationSpec = tween(300),
-                                    initialOffsetX = { -it / 3 }
-                                ),
-                        exit = fadeOut(animationSpec = tween(250)) + 
-                               slideOutHorizontally(
-                                   animationSpec = tween(250),
-                                   targetOffsetX = { -it / 3 }
-                               )
-                    ) {
+                    } else {
                         Text("笔记")
                     }
                 },
                 actions = {
-                    IconButton(onClick = { 
-                        if (showSearchBar) {
-                            viewModel.setSearchQuery("")
-                        }
-                        showSearchBar = !showSearchBar 
-                    }) {
+                    IconButton(onClick = { showSearchBar = !showSearchBar }) {
                         Icon(
                             if (showSearchBar) Icons.Default.Close else Icons.Default.Search,
-                            contentDescription = if (showSearchBar) "关闭搜索" else "搜索"
+                            contentDescription = "搜索"
                         )
                     }
-                    AnimatedVisibility(
-                        visible = !showSearchBar,
-                        enter = fadeIn(animationSpec = tween(200)),
-                        exit = fadeOut(animationSpec = tween(150))
-                    ) {
-                        Row {
-                            IconButton(onClick = onNavigateToCategories) {
-                                Icon(Icons.Default.Folder, contentDescription = "分类")
-                            }
-                            IconButton(onClick = onNavigateToSettings) {
-                                Icon(Icons.Default.Settings, contentDescription = "设置")
-                            }
-                        }
+                    IconButton(onClick = onNavigateToCategories) {
+                        Icon(Icons.Default.Folder, contentDescription = "分类")
+                    }
+                    IconButton(onClick = onNavigateToSettings) {
+                        Icon(Icons.Default.Settings, contentDescription = "设置")
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -198,7 +134,8 @@ fun MainScreen(
             )
         },
         floatingActionButton = {
-            FloatingActionButton(
+            // 优化浮动按钮样式 - 添加阴影和更大的尺寸
+            LargeFloatingActionButton(
                 onClick = { 
                     isFabPressed = true
                     scope.launch {
@@ -209,12 +146,20 @@ fun MainScreen(
                     }
                 },
                 containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary
+                contentColor = MaterialTheme.colorScheme.onPrimary,
+                modifier = Modifier
+                    .shadow(
+                        elevation = 8.dp,
+                        shape = RoundedCornerShape(20.dp),
+                        spotColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
+                    )
             ) {
                 Icon(
                     Icons.Default.Add, 
                     contentDescription = "添加笔记",
-                    modifier = Modifier.rotate(fabRotation)
+                    modifier = Modifier
+                        .size(28.dp)
+                        .rotate(fabRotation)
                 )
             }
         }
@@ -234,9 +179,16 @@ fun MainScreen(
             
             // 渐入动画
             var isVisible by remember { mutableStateOf(false) }
+            val alphaValue by animateFloatAsState(
+                targetValue = if (isVisible) 1f else 0f,
+                label = "alpha"
+            )
             LaunchedEffect(Unit) {
                 isVisible = true
             }
+            
+            // 获取颜色值
+            val primaryColor = MaterialTheme.colorScheme.primary
             
             Box(
                 modifier = Modifier
@@ -248,8 +200,10 @@ fun MainScreen(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                     modifier = Modifier
-                        .graphicsLayer { translationY = floatOffset }
-                        .alpha(animateFloatAsState(if (isVisible) 1f else 0f, label = "alpha").value)
+                        .graphicsLayer { 
+                            translationY = floatOffset
+                            this.alpha = alphaValue
+                        }
                 ) {
                     // 渐变背景圆圈
                     Box(
@@ -259,8 +213,8 @@ fun MainScreen(
                                 drawCircle(
                                     brush = Brush.radialGradient(
                                         colors = listOf(
-                                            MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
-                                            MaterialTheme.colorScheme.primary.copy(alpha = 0.05f)
+                                            primaryColor.copy(alpha = 0.15f),
+                                            primaryColor.copy(alpha = 0.05f)
                                         ),
                                         center = Offset(center.x, center.y - 20f),
                                         radius = size.minDimension / 2
@@ -273,7 +227,7 @@ fun MainScreen(
                             if (isSearching && searchQuery.isNotEmpty()) Icons.Default.SearchOff else Icons.Default.NoteAlt,
                             contentDescription = null,
                             modifier = Modifier.size(96.dp),
-                            tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
+                            tint = primaryColor.copy(alpha = 0.7f)
                         )
                     }
                     
@@ -303,7 +257,7 @@ fun MainScreen(
                             Icons.Default.AddCircleOutline,
                             contentDescription = null,
                             modifier = Modifier.size(32.dp),
-                            tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
+                            tint = primaryColor.copy(alpha = 0.5f)
                         )
                     }
                 }
