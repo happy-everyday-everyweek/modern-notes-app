@@ -7,10 +7,19 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.expandHorizontally
+import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -31,10 +40,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.alpha
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.modernnotes.data.model.Category
 import com.modernnotes.data.model.Note
@@ -81,36 +95,101 @@ fun MainScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    if (showSearchBar) {
-                        TextField(
-                            value = searchQuery,
-                            onValueChange = { viewModel.setSearchQuery(it) },
+                    AnimatedVisibility(
+                        visible = showSearchBar,
+                        enter = fadeIn(animationSpec = tween(300)) + 
+                                expandHorizontally(
+                                    animationSpec = tween(300),
+                                    expandFrom = Alignment.End
+                                ),
+                        exit = fadeOut(animationSpec = tween(250)) + 
+                               shrinkHorizontally(
+                                   animationSpec = tween(250),
+                                   shrinkTowards = Alignment.End
+                               )
+                    ) {
+                        SearchBar(
+                            query = searchQuery,
+                            onQueryChange = { viewModel.setSearchQuery(it) },
+                            onSearch = { /* 搜索操作 */ },
+                            active = false,
+                            onActiveChange = { },
                             placeholder = { Text("搜索笔记") },
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = TextFieldDefaults.colors(
-                                focusedContainerColor = MaterialTheme.colorScheme.surface,
-                                unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                                focusedIndicatorColor = Color.Transparent,
-                                unfocusedIndicatorColor = Color.Transparent
-                            ),
-                            singleLine = true
+                            leadingIcon = {
+                                Icon(
+                                    Icons.Default.Search,
+                                    contentDescription = "搜索",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            },
+                            trailingIcon = {
+                                if (searchQuery.isNotEmpty()) {
+                                    IconButton(onClick = { viewModel.setSearchQuery("") }) {
+                                        Icon(
+                                            Icons.Default.Clear,
+                                            contentDescription = "清除",
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(end = 8.dp),
+                            shape = RoundedCornerShape(28.dp),
+                            colors = SearchBarDefaults.colors(
+                                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                inputFieldColors = TextFieldDefaults.colors(
+                                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                    focusedContainerColor = Color.Transparent,
+                                    unfocusedContainerColor = Color.Transparent
+                                )
+                            )
                         )
-                    } else {
+                    }
+                    
+                    AnimatedVisibility(
+                        visible = !showSearchBar,
+                        enter = fadeIn(animationSpec = tween(300)) + 
+                                slideInHorizontally(
+                                    animationSpec = tween(300),
+                                    initialOffsetX = { -it / 3 }
+                                ),
+                        exit = fadeOut(animationSpec = tween(250)) + 
+                               slideOutHorizontally(
+                                   animationSpec = tween(250),
+                                   targetOffsetX = { -it / 3 }
+                               )
+                    ) {
                         Text("笔记")
                     }
                 },
                 actions = {
-                    IconButton(onClick = { showSearchBar = !showSearchBar }) {
+                    IconButton(onClick = { 
+                        if (showSearchBar) {
+                            viewModel.setSearchQuery("")
+                        }
+                        showSearchBar = !showSearchBar 
+                    }) {
                         Icon(
                             if (showSearchBar) Icons.Default.Close else Icons.Default.Search,
-                            contentDescription = "搜索"
+                            contentDescription = if (showSearchBar) "关闭搜索" else "搜索"
                         )
                     }
-                    IconButton(onClick = onNavigateToCategories) {
-                        Icon(Icons.Default.Folder, contentDescription = "分类")
-                    }
-                    IconButton(onClick = onNavigateToSettings) {
-                        Icon(Icons.Default.Settings, contentDescription = "设置")
+                    AnimatedVisibility(
+                        visible = !showSearchBar,
+                        enter = fadeIn(animationSpec = tween(200)),
+                        exit = fadeOut(animationSpec = tween(150))
+                    ) {
+                        Row {
+                            IconButton(onClick = onNavigateToCategories) {
+                                Icon(Icons.Default.Folder, contentDescription = "分类")
+                            }
+                            IconButton(onClick = onNavigateToSettings) {
+                                Icon(Icons.Default.Settings, contentDescription = "设置")
+                            }
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -141,6 +220,24 @@ fun MainScreen(
         }
     ) { paddingValues ->
         if (displayNoteGroups.isEmpty()) {
+            // 空状态浮动动画
+            val infiniteTransition = rememberInfiniteTransition(label = "empty_state_animation")
+            val floatOffset by infiniteTransition.animateFloat(
+                initialValue = 0f,
+                targetValue = -12f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(2000, easing = LinearEasing),
+                    repeatMode = RepeatMode.Reverse
+                ),
+                label = "float_offset"
+            )
+            
+            // 渐入动画
+            var isVisible by remember { mutableStateOf(false) }
+            LaunchedEffect(Unit) {
+                isVisible = true
+            }
+            
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -149,24 +246,66 @@ fun MainScreen(
             ) {
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                    modifier = Modifier
+                        .graphicsLayer { translationY = floatOffset }
+                        .alpha(animateFloatAsState(if (isVisible) 1f else 0f, label = "alpha").value)
                 ) {
-                    Icon(
-                        Icons.Default.NoteAlt,
-                        contentDescription = null,
-                        modifier = Modifier.size(64.dp),
-                        tint = MaterialTheme.colorScheme.outline
-                    )
+                    // 渐变背景圆圈
+                    Box(
+                        modifier = Modifier
+                            .size(120.dp)
+                            .drawBehind {
+                                drawCircle(
+                                    brush = Brush.radialGradient(
+                                        colors = listOf(
+                                            MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
+                                            MaterialTheme.colorScheme.primary.copy(alpha = 0.05f)
+                                        ),
+                                        center = Offset(center.x, center.y - 20f),
+                                        radius = size.minDimension / 2
+                                    )
+                                )
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            if (isSearching && searchQuery.isNotEmpty()) Icons.Default.SearchOff else Icons.Default.NoteAlt,
+                            contentDescription = null,
+                            modifier = Modifier.size(96.dp),
+                            tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
+                        )
+                    }
+                    
+                    Spacer(modifier = Modifier.height(8.dp))
+                    
                     Text(
                         if (isSearching && searchQuery.isNotEmpty()) "未找到相关笔记" else "暂无笔记",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.outline
+                        style = MaterialTheme.typography.titleLarge,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.Medium
                     )
+                    
                     Text(
-                        if (isSearching && searchQuery.isNotEmpty()) "尝试其他关键词" else "点击下方按钮添加新笔记",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.outline
+                        if (isSearching && searchQuery.isNotEmpty()) 
+                            "换个关键词试试吧" 
+                        else 
+                            "点击右下角的按钮\n开始记录你的想法",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
                     )
+                    
+                    // 添加提示图标
+                    if (!isSearching || searchQuery.isEmpty()) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Icon(
+                            Icons.Default.AddCircleOutline,
+                            contentDescription = null,
+                            modifier = Modifier.size(32.dp),
+                            tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
+                        )
+                    }
                 }
             }
         } else {
