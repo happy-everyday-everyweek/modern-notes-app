@@ -3,6 +3,7 @@ package com.modernnotes.ui.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.modernnotes.NotesApp
+import com.modernnotes.data.model.Category
 import com.modernnotes.data.model.Note
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -14,8 +15,12 @@ import kotlinx.coroutines.launch
 class MainViewModel : ViewModel() {
     
     private val repository = NotesApp.noteRepository
+    private val categoryRepository = NotesApp.categoryRepository
     
     val notes: StateFlow<List<Note>> = repository.getAllNotes()
+        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+    
+    val categories: StateFlow<List<Category>> = categoryRepository.getAllCategories()
         .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
     
     private val _searchQuery = MutableStateFlow("")

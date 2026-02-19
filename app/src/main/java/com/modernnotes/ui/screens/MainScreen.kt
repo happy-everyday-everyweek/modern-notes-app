@@ -3,9 +3,12 @@ package com.modernnotes.ui.screens
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -17,10 +20,13 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.modernnotes.data.model.Category
 import com.modernnotes.data.model.Note
 import com.modernnotes.ui.viewmodel.MainViewModel
 import java.text.SimpleDateFormat
@@ -35,6 +41,7 @@ fun MainScreen(
 ) {
     val viewModel: MainViewModel = viewModel()
     val notes by viewModel.notes.collectAsState()
+    val categories by viewModel.categories.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
     val searchResults by viewModel.searchResults.collectAsState()
     val isSearching by viewModel.isSearching.collectAsState()
@@ -136,6 +143,7 @@ fun MainScreen(
                 items(displayNotes, key = { it.id }) { note ->
                     NoteCard(
                         note = note,
+                        categories = categories,
                         onClick = { onNavigateToEdit(note.id) },
                         onLongClick = { showDeleteDialog = note }
                     )
@@ -175,36 +183,74 @@ fun MainScreen(
 @Composable
 fun NoteCard(
     note: Note,
+    categories: List<Category>,
     onClick: () -> Unit,
     onLongClick: () -> Unit
 ) {
     val dateFormat = remember { SimpleDateFormat("yyyy/MM/dd HH:mm", Locale.getDefault()) }
     
+    // 获取笔记对应的分类
+    val category = remember(note.categoryId, categories) {
+        note.categoryId?.let { id ->
+            categories.find { it.id == id }
+        }
+    }
+    
+    // 交互状态
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    
+    // 按压时的缩放动画
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.97f else 1f,
+        label = "card_scale"
+    )
+    
     Card(
         modifier = Modifier
             .fillMaxWidth()
+            .scale(scale)
             .combinedClickable(
+                interactionSource = interactionSource,
+                indication = null, // 使用自定义缩放效果
                 onClick = onClick,
                 onLongClick = onLongClick
             ),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = 3.dp,
+            pressedElevation = 6.dp
+        )
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(16.dp)
         ) {
-            Text(
-                text = note.title.ifEmpty { "无标题" },
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
+            // 标题行（包含标题和分类标签）
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = note.title.ifEmpty { "无标题" },
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
+                )
+                
+                // 分类标签
+                category?.let { cat ->
+                    Spacer(modifier = Modifier.width(8.dp))
+                    CategoryTag(category = cat)
+                }
+            }
             
             if (note.content.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(8.dp))
@@ -230,6 +276,39 @@ fun NoteCard(
                     color = MaterialTheme.colorScheme.outline
                 )
             }
+        }
+    }
+}
+
+@Composable
+fun CategoryTag(category: Category) {
+    val categoryColor = Color(category.color)
+    
+    Surface(
+        shape = RoundedCornerShape(12.dp),
+        color = categoryColor.copy(alpha = 0.15f),
+        modifier = Modifier.height(24.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            // 小圆点
+            Box(
+                modifier = Modifier
+                    .size(6.dp)
+                    .clip(RoundedCornerShape(3.dp))
+                    .background(categoryColor)
+            )
+            
+            Text(
+                text = category.name,
+                style = MaterialTheme.typography.labelSmall,
+                color = categoryColor,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
         }
     }
 }
