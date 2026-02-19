@@ -4,6 +4,14 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
@@ -12,6 +20,7 @@ import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -21,6 +30,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.text.style.TextOverflow
@@ -31,6 +41,8 @@ import com.modernnotes.data.model.Note
 import com.modernnotes.ui.viewmodel.MainViewModel
 import java.text.SimpleDateFormat
 import java.util.*
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -47,6 +59,23 @@ fun MainScreen(
     
     var showSearchBar by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf<Note?>(null) }
+    
+    // 浮动按钮旋转动画状态
+    var isFabPressed by remember { mutableStateOf(false) }
+    val fabRotation by animateFloatAsState(
+        targetValue = if (isFabPressed) 45f else 0f,
+        animationSpec = spring(stiffness = Spring.StiffnessMedium),
+        label = "fab_rotation"
+    )
+    
+    // 列表项入场动画状态
+    var isListVisible by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    
+    // 初始化时触发入场动画
+    LaunchedEffect(displayNoteGroups) {
+        isListVisible = true
+    }
 
     Scaffold(
         topBar = {
@@ -91,11 +120,23 @@ fun MainScreen(
         },
         floatingActionButton = {
             FloatingActionButton(
-                onClick = { onNavigateToEdit(null) },
+                onClick = { 
+                    isFabPressed = true
+                    scope.launch {
+                        delay(150)
+                        onNavigateToEdit(null)
+                        delay(100)
+                        isFabPressed = false
+                    }
+                },
                 containerColor = MaterialTheme.colorScheme.primary,
                 contentColor = MaterialTheme.colorScheme.onPrimary
             ) {
-                Icon(Icons.Default.Add, contentDescription = "添加笔记")
+                Icon(
+                    Icons.Default.Add, 
+                    contentDescription = "添加笔记",
+                    modifier = Modifier.rotate(fabRotation)
+                )
             }
         }
     ) { paddingValues ->
@@ -136,27 +177,62 @@ fun MainScreen(
                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                displayNoteGroups.forEach { group ->
+                displayNoteGroups.forEachIndexed { groupIndex, group ->
                     // 粘性头部
                     stickyHeader(key = group.title) {
-                        GroupHeader(title = group.title)
+                        AnimatedVisibility(
+                            visible = isListVisible,
+                            enter = fadeIn(
+                                animationSpec = tween(durationMillis = 300, delayMillis = groupIndex * 50)
+                            ) + slideInVertically(
+                                animationSpec = tween(durationMillis = 300, delayMillis = groupIndex * 50),
+                                initialOffsetY = { -it / 3 }
+                            )
+                        ) {
+                            GroupHeader(title = group.title)
+                        }
                     }
                     
                     // 分组内的笔记卡片
-                    items(group.notes, key = { "note_${it.id}" }) { note ->
-                        NoteCard(
-                            note = note,
-                            categories = categories,
-                            onClick = { onNavigateToEdit(note.id) },
-                            onLongClick = { showDeleteDialog = note }
-                        )
+                    itemsIndexed(group.notes, key = { _, note -> "note_${note.id}" }) { itemIndex, note ->
+                        // 计算延迟时间，每个卡片延迟50ms
+                        val delayMillis = (groupIndex * 100 + itemIndex * 50).coerceAtMost(500)
+                        
+                        AnimatedVisibility(
+                            visible = isListVisible,
+                            enter = fadeIn(
+                                animationSpec = tween(durationMillis = 350, delayMillis = delayMillis)
+                            ) + slideInVertically(
+                                animationSpec = tween(durationMillis = 350, delayMillis = delayMillis),
+                                initialOffsetY = { it / 4 }
+                            ),
+                            exit = fadeOut(animationSpec = tween(200))
+                        ) {
+                            NoteCard(
+                                note = note,
+                                categories = categories,
+                                onClick = { onNavigateToEdit(note.id) },
+                                onLongClick = { showDeleteDialog = note }
+                            )
+                        }
                     }
                 }
             }
         }
     }
 
-    if (showDeleteDialog != null) {
+    // 删除确认对话框，带动画效果
+    AnimatedVisibility(
+        visible = showDeleteDialog != null,
+        enter = fadeIn(animationSpec = tween(200)) + scaleIn(
+            animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+            initialScale = 0.8f
+        ),
+        exit = fadeOut(animationSpec = tween(150)) + scaleOut(
+            animationSpec = tween(150),
+            targetScale = 0.8f
+        )
+    ) {
         AlertDialog(
             onDismissRequest = { showDeleteDialog = null },
             title = { Text("确认删除") },
